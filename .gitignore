@@ -1,0 +1,14 @@
+*.log
+*.tmp
+*.bak
+*.user
+*.psess
+*.vhd
+*.vhdx
+*.avhdx
+*.iso
+*.vmcx
+*.vmgs
+*.vmrs
+Thumbs.db
+Desktop.ini
