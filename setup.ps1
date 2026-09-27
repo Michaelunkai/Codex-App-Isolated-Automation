@@ -216,7 +216,7 @@ if ($feature.State -ne 'Enabled') {
 }
 
 Import-Module Hyper-V -ErrorAction Stop
-$requiredCommands = @('Get-VM', 'New-VM', 'New-VHD', 'Set-VM', 'Set-VMMemory', 'Set-VMProcessor', 'Get-VMIntegrationService', 'Enable-VMIntegrationService')
+$requiredCommands = @('Get-VM', 'New-VM', 'New-VHD', 'Set-VM', 'Set-VMMemory', 'Set-VMProcessor', 'Get-VMFirmware', 'Set-VMFirmware', 'Get-VMSecurity', 'Get-VMKeyProtector', 'Set-VMKeyProtector', 'Enable-VMTPM', 'Get-VMIntegrationService', 'Enable-VMIntegrationService')
 foreach ($commandName in $requiredCommands) {
     if (-not (Get-Command $commandName -ErrorAction SilentlyContinue)) {
         throw ('Required Hyper-V command is unavailable: {0}' -f $commandName)
@@ -303,6 +303,24 @@ Set-VMMemory -VMName $vmName -DynamicMemoryEnabled $true -StartupBytes 4GB -Mini
 Set-VMProcessor -VMName $vmName -Count 4 -Maximum 50 -Reserve 0 -RelativeWeight 100 -ErrorAction Stop
 Set-VM -Name $vmName -AutomaticStopAction Save -AutomaticStartAction Nothing -EnhancedSessionTransportType HvSocket -ErrorAction Stop
 Set-VMHost -EnableEnhancedSessionMode $true -ErrorAction Stop
+
+$firmware = Get-VMFirmware -VMName $vmName -ErrorAction Stop
+if ($firmware.SecureBoot -ne 'On' -or $firmware.SecureBootTemplate -ne 'MicrosoftWindows') {
+    Set-VMFirmware -VMName $vmName -EnableSecureBoot On -SecureBootTemplate MicrosoftWindows -ErrorAction Stop
+}
+
+$vmSecurity = Get-VMSecurity -VMName $vmName -ErrorAction Stop
+if (-not $vmSecurity.TpmEnabled) {
+    $keyProtector = Get-VMKeyProtector -VMName $vmName -ErrorAction Stop
+    if ($null -eq $keyProtector -or $keyProtector.Length -eq 0) {
+        Set-VMKeyProtector -VMName $vmName -NewLocalKeyProtector -ErrorAction Stop
+    }
+    Enable-VMTPM -VMName $vmName -ErrorAction Stop
+}
+$vmSecurity = Get-VMSecurity -VMName $vmName -ErrorAction Stop
+if (-not $vmSecurity.TpmEnabled) {
+    throw 'The VM virtual TPM could not be enabled; Windows 11 provisioning cannot continue.'
+}
 
 $availableServices = @(Get-VMIntegrationService -VMName $vmName -ErrorAction Stop)
 foreach ($serviceName in $requiredIntegrationServices) {

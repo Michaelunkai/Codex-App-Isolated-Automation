@@ -7,6 +7,7 @@ PowerShell 5.1 tooling for creating and managing a Generation 2 Hyper-V VM named
 - A dynamically expanding 64 GB VHDX at `C:\Hyper-V\Codex-App-Isolated\Codex-App-Isolated.vhdx`.
 - Four virtual processors with a 50 percent Hyper-V processor maximum, zero reserve, and relative weight 100.
 - Dynamic memory with 4 GB startup, 2 GB minimum, 6 GB maximum, 20 percent buffer, and priority 50.
+- Microsoft Windows Secure Boot and a virtual TPM with a host-local key protector for Windows 11 compatibility.
 - Save-on-host-shutdown, manual host startup, the six requested integration services, and HvSocket Enhanced Session transport.
 - The existing Default Switch when present. Otherwise, it detects a single existing switch whose host IPv4 address belongs to an active NAT prefix. It does not create or reconfigure host switches, NATs, or adapters.
 - `C:\Codex-VM-Automation\` management scripts and launch shortcuts.
