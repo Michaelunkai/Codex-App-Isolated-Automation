@@ -11,6 +11,7 @@ $requiredPaths = @(
     'pause-codex-vm.ps1',
     'pause-codex-vm.bat',
     'GuestTools\unrestricted-drives-setup.ps1',
+    'lib\VhdChain.ps1',
     'tests\Verify-LiveVm.ps1'
 )
 
@@ -51,6 +52,8 @@ Assert-Condition ([regex]::IsMatch($setupText, '-MaximumBytes\s+6GB')) 'Setup mu
 Assert-Condition ([regex]::IsMatch($setupText, '-MinimumBytes\s+2GB')) 'Setup must set minimum dynamic memory to 2 GB.'
 Assert-Condition ([regex]::IsMatch($setupText, '-StartupBytes\s+4GB')) 'Setup must set startup memory to 4 GB.'
 Assert-Condition ([regex]::IsMatch($setupText, '-SizeBytes\s+64GB')) 'Setup must create a 64 GB virtual disk.'
+Assert-Condition ($setupText.Contains('Get-VhdPathChain')) 'Setup must validate a checkpoint-backed VHD chain to the managed VHDX.'
+Assert-Condition ($setupText.Contains('$currentProcessor.Count -ne 4')) 'Setup must reconcile processor settings without applying no-op updates.'
 Assert-Condition ($setupText.Contains('Existing VM/VHDX reused; guest OS or app installation was not inspected.')) 'Setup must not claim an existing VM disk is blank without inspecting its guest.'
 Assert-Condition ([regex]::IsMatch($setupText, 'if\s*\(\$existingVm\)[\s\S]*?Add-VMHardDiskDrive')) 'Setup must attach the managed VHDX when reconciling an existing VM with no disk.'
 Assert-Condition ([regex]::IsMatch($setupText, '-EnhancedSessionTransportType\s+HvSocket')) 'Setup must set the VM Enhanced Session transport to HvSocket.'

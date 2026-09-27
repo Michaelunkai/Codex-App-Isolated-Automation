@@ -5,6 +5,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Import-Module Hyper-V -ErrorAction Stop
+. (Join-Path $PSScriptRoot '..\lib\VhdChain.ps1')
 
 $vm = Get-VM -Name $VMName -ErrorAction SilentlyContinue
 if ($null -eq $vm) { throw ('VM not found: {0}' -f $VMName) }
@@ -16,6 +17,10 @@ $security = Get-VMSecurity -VMName $VMName -ErrorAction Stop
 $hostSettings = Get-VMHost -ErrorAction Stop
 $networkAdapters = @(Get-VMNetworkAdapter -VMName $VMName -ErrorAction Stop)
 $hardDrives = @(Get-VMHardDiskDrive -VMName $VMName -ErrorAction Stop)
+$attachedDiskChain = @()
+if ($hardDrives.Count -eq 1) {
+    $attachedDiskChain = @(Get-VhdPathChain -Path $hardDrives[0].Path)
+}
 $integrationServices = @(Get-VMIntegrationService -VMName $VMName -ErrorAction Stop)
 $expectedVhd = 'C:\Hyper-V\Codex-App-Isolated\Codex-App-Isolated.vhdx'
 $failures = @()
@@ -29,7 +34,7 @@ if ($vm.AutomaticStartAction -ne 'Nothing' -or $vm.AutomaticStopAction -ne 'Save
 if ($vm.EnhancedSessionTransportType -ne 'HvSocket') { $failures += 'VM Enhanced Session transport is not HvSocket' }
 if (-not $hostSettings.EnableEnhancedSessionMode) { $failures += 'Host Enhanced Session Mode is disabled' }
 if ($networkAdapters.Count -ne 1 -or [string]::IsNullOrWhiteSpace($networkAdapters[0].SwitchName)) { $failures += 'VM is not attached to exactly one switch' }
-if ($hardDrives.Count -ne 1 -or -not [string]::Equals($hardDrives[0].Path, $expectedVhd, [StringComparison]::OrdinalIgnoreCase)) { $failures += 'VM VHD path does not match' }
+if ($hardDrives.Count -ne 1 -or $attachedDiskChain.Count -eq 0 -or -not [string]::Equals($attachedDiskChain[-1].Path, $expectedVhd, [StringComparison]::OrdinalIgnoreCase)) { $failures += 'VM VHD backing path does not match' }
 
 $disk = Get-VHD -Path $expectedVhd -ErrorAction Stop
 if ($disk.VhdFormat -ne 'VHDX' -or $disk.VhdType -ne 'Dynamic' -or $disk.Size -ne 64GB) { $failures += 'VHD format/type/capacity do not match' }
@@ -45,6 +50,8 @@ $result = [pscustomobject]@{
     State = [string]$vm.State
     Generation = $vm.Generation
     VhdPath = $expectedVhd
+    AttachedVhdPath = if ($hardDrives.Count -eq 1) { $hardDrives[0].Path } else { $null }
+    VhdPathChain = @($attachedDiskChain | ForEach-Object { $_.Path })
     VhdFormat = [string]$disk.VhdFormat
     VhdType = [string]$disk.VhdType
     VhdSizeBytes = $disk.Size

@@ -17,7 +17,8 @@ $managedFiles = @(
     'launch-codex-vm.bat',
     'pause-codex-vm.ps1',
     'pause-codex-vm.bat',
-    'GuestTools\unrestricted-drives-setup.ps1'
+    'GuestTools\unrestricted-drives-setup.ps1',
+    'lib\VhdChain.ps1'
 )
 $requiredIntegrationServices = @(
     'Guest Service Interface',
@@ -216,6 +217,7 @@ if ($feature.State -ne 'Enabled') {
 }
 
 Import-Module Hyper-V -ErrorAction Stop
+. (Join-Path $PSScriptRoot 'lib\VhdChain.ps1')
 $requiredCommands = @('Get-VM', 'New-VM', 'New-VHD', 'Set-VM', 'Set-VMMemory', 'Set-VMProcessor', 'Get-VMFirmware', 'Set-VMFirmware', 'Get-VMSecurity', 'Get-VMKeyProtector', 'Set-VMKeyProtector', 'Enable-VMTPM', 'Get-VMIntegrationService', 'Enable-VMIntegrationService')
 foreach ($commandName in $requiredCommands) {
     if (-not (Get-Command $commandName -ErrorAction SilentlyContinue)) {
@@ -243,8 +245,15 @@ if ($existingVm) {
         throw ('The existing VM is {0}. Save it, turn it off, and rerun setup; no running session was interrupted.' -f $existingVm.State)
     }
     $existingDrives = @(Get-VMHardDiskDrive -VMName $vmName -ErrorAction Stop)
-    if ($existingDrives.Count -gt 1 -or ($existingDrives.Count -eq 1 -and -not [string]::Equals($existingDrives[0].Path, $vhdPath, [StringComparison]::OrdinalIgnoreCase))) {
+    if ($existingDrives.Count -gt 1) {
         throw 'The existing VM has a different or additional virtual disk. It was left unchanged.'
+    }
+    if ($existingDrives.Count -eq 1) {
+        $attachedDiskChain = @(Get-VhdPathChain -Path $existingDrives[0].Path)
+        $backingDiskPath = $attachedDiskChain[-1].Path
+        if (-not [string]::Equals($backingDiskPath, $vhdPath, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'The existing VM has a different or additional virtual disk. It was left unchanged.'
+        }
     }
 }
 
@@ -300,7 +309,14 @@ elseif ($networkAdapters[0].SwitchName -ne $networkSwitch.Name) {
 }
 
 Set-VMMemory -VMName $vmName -DynamicMemoryEnabled $true -StartupBytes 4GB -MinimumBytes 2GB -MaximumBytes 6GB -Buffer 20 -Priority 50 -ErrorAction Stop
-Set-VMProcessor -VMName $vmName -Count 4 -Maximum 50 -Reserve 0 -RelativeWeight 100 -ErrorAction Stop
+$currentProcessor = Get-VMProcessor -VMName $vmName -ErrorAction Stop
+if ($currentProcessor.Count -ne 4 -or $currentProcessor.Maximum -ne 50 -or $currentProcessor.Reserve -ne 0 -or $currentProcessor.RelativeWeight -ne 100) {
+    $vmForProcessorUpdate = Get-VM -Name $vmName -ErrorAction Stop
+    if ([string]$vmForProcessorUpdate.State -eq 'Saved') {
+        throw 'The VM processor settings need an update, but Hyper-V cannot change them while the VM is Saved. Resume the VM, shut Windows down cleanly, then rerun setup; its saved state was preserved.'
+    }
+    Set-VMProcessor -VMName $vmName -Count 4 -Maximum 50 -Reserve 0 -RelativeWeight 100 -ErrorAction Stop
+}
 Set-VM -Name $vmName -AutomaticStopAction Save -AutomaticStartAction Nothing -EnhancedSessionTransportType HvSocket -ErrorAction Stop
 Set-VMHost -EnableEnhancedSessionMode $true -ErrorAction Stop
 

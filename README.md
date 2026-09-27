@@ -14,6 +14,8 @@ PowerShell 5.1 tooling for creating and managing a Generation 2 Hyper-V VM named
 
 `Set-VMProcessor -Maximum 50` is a per-virtual-processor limit applied uniformly to the VM's virtual processors. On the inspected 16-logical-processor host, four vCPUs at 50 percent amount to roughly two logical-processor equivalents (12.5 percent of total host capacity); this is an inference from the documented per-processor behavior. It does not implement a 50 percent host-wide CPU-group cap. Hyper-V CPU groups use a separate Host Compute Service interface, which this project does not configure. The verified 6 GB setting is the guest memory maximum; it is not a measurement or strict ceiling for the complete VM worker-process footprint.
 
+Hyper-V can attach an automatic-checkpoint `.avhdx` as the active disk while keeping the configured `.vhdx` as its parent. Setup and the live verifier walk the complete parent chain and require it to end at the configured 64 GB base disk. They preserve existing checkpoint state. Setup also avoids sending an unchanged processor configuration to Hyper-V while the VM is Saved; changing processor settings requires the VM to be Off.
+
 Run a no-change preflight:
 
 ```powershell
@@ -48,7 +50,7 @@ Enhanced Session drive redirection is configured in VMConnect for each connectio
 
 Setup deliberately leaves existing SMB share permissions alone and does not grant `Everyone` write access to drive roots. A VM with administrative write access to every host drive would not isolate the host filesystem. Host-wide SMB changes would also require guest credentials and a separate access decision. Existing shares can be used only with their current ACLs.
 
-Enhanced Session drive selection is a VMConnect setting, not a supported `Set-VM` operation that setup can force without a session choice. Clipboard and audio availability depend on the Enhanced Session guest and its effective RDP policy.
+Enhanced Session drive selection is a VMConnect setting, not a supported `Set-VM` operation that setup can force without a session choice. Choose the drives in VMConnect and save the connection settings for future connections. Clipboard and audio availability depend on the Enhanced Session guest and its effective RDP policy. See Microsoft's [VMConnect local resources instructions](https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/use-local-resources-virtual-machine-connection).
 
 ## Microsoft references
 
